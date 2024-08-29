@@ -1,6 +1,8 @@
 package myriscv
 
 import myriscv.misc._
+import myriscv.fetch._
+
 import spinal.core._
 
 import scala.language.postfixOps
@@ -12,9 +14,11 @@ object MyRiscv extends App {
 }
 
 class MyRiscv(config: MyConfig) extends Component {
-
   import config._
 
   implicit val framework: Framework = new Framework
+
+  val Pipeline = new Pipeline
+  val PipelineTest = new PipelineTest
 
 }

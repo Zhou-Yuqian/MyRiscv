@@ -36,16 +36,14 @@ class Stage extends Area {
   }
 }
 
-class PayloadRegister extends mutable.HashMap[Payload[_ <: BaseType], BaseType] with Nameable {
-  def apply[T <: BaseType](payload: Payload[T]): T = {
-    val register = Reg(payload())
-    register initFrom B(0)
-    getOrElseUpdate(key = payload, defaultValue = register).asInstanceOf[T]
-  }
-}
-
 class StageLink(master: Stage, slave: Stage) {
-  val registers = new PayloadRegister
+  val registers = new mutable.HashMap[Payload[_ <: BaseType], BaseType] with Nameable {
+    def apply[T <: BaseType](payload: Payload[T]): T = {
+      val register = Reg(payload())
+      register initFrom B(0)
+      getOrElseUpdate(key = payload, defaultValue = register).asInstanceOf[T]
+    }
+  }
 
   def build(): Unit = {
     slave.defaults.keys.foreach { payload =>
@@ -60,15 +58,28 @@ class StageLink(master: Stage, slave: Stage) {
   }
 }
 
-class Pipeline extends Area {
-  val stages = new mutable.ArrayBuffer[Stage]()
-  val links = new mutable.ArrayBuffer[StageLink]()
+class Pipeline()
+              (implicit val framework: Framework) extends Plugin(framework) {
 
-  def build(stage: Stage*): Unit = {
-    stages ++= stage
-    links ++= stages.dropRight(1).zip(stages.drop(1)).map(ms => new StageLink(ms._1, ms._2))
+  val FetchStage = new Stage
+  val DecodeStage = new Stage
+  val ExecuteStage = new Stage
+  val MemoryStage = new Stage
+  val WritebackStage = new Stage
+
+  val TestPayload = new Payload(Bits(4 bits))
+
+  val build = during build new Area {
+    framework.plugins.filter(!_.isInstanceOf[Pipeline]).foreach { plugin =>
+      plugin.setups.foreach(_.await())
+      plugin.builds.foreach(_.await())
+    }
+
+    val stages: Array[Stage] = Array(FetchStage, DecodeStage, ExecuteStage, MemoryStage, WritebackStage)
+    val links: Array[StageLink] = stages.dropRight(1).zip(stages.drop(1)).map(ms => new StageLink(ms._1, ms._2))
     stages.reverse.foreach(_.build())
     links.reverse.foreach(_.build())
     stages.foreach(_.display())
   }
+
 }
